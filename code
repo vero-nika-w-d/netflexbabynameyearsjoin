@@ -1,0 +1,107 @@
+%pip install pandas numpy matplotlib
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+netflix = pd.read_csv('Downloads/netflix_titles.csv')
+netflix.head()
+netflix.info()
+netflix.describe()
+netflix.isnull().sum()
+exact_duplicates = netflix.duplicated().sum()
+exact_duplicates
+netflix=netflix.dropna(subset=['duration','rating'])
+#clean up null values
+netflix = netflix[netflix['type'].isin(['Movie', 'TV Show'])].copy()
+netflix['country'] = netflix['country'].fillna('Unknown')
+netflix['director'] = netflix['director'].fillna('Not Available')
+netflix['cast'] = netflix['cast'].fillna('Not Listed')
+netflix['date_added'] = netflix['date_added'].fillna('Date Not Available')
+netflix.head(10)
+netflix['type'].value_counts()
+top_directors=netflix['director'].value_counts().head(8)
+top_directors
+top_country=netflix['country'].value_counts().head(15)
+top_country
+top_release_year=netflix['release_year'].value_counts().head(30)
+top_release_year
+Top_types_by_country=netflix.groupby(['country','type']).size().reset_index(name='count')
+Top_types_by_country = Top_types_by_country.sort_values(by='count', ascending=False).head(20)
+Top_types_by_country
+#converting the durating to a usable number
+netflix['duration_min'] = netflix['duration'].str.extract(r'(\d+)').astype(float)
+netflix
+documentaries=netflix[netflix['listed_in'].str.contains('Documentaries')]
+documentaries
+netflix[netflix['country'].isin(['France', 'Turkey'])][['country','type', 'date_added']].head(20)
+type_counts = netflix['type'].value_counts()
+#counting types within netflix
+type_counts.plot(kind='bar', color=['skyblue', 'blue'])
+plt.xlabel('Type')
+plt.ylabel('Count')
+plt.title('Movies vs TV Shows on Netflix')
+plt.tight_layout()
+plt.show()
+plt.figure(figsize=(10,4))
+netflix['release_year'].value_counts().sort_index().plot(kind='line',color='blue')
+plt.title("Titles Released Over Year")
+plt.xlabel("Year or Release")
+plt.ylabel("Number of titles")
+plt.grid(True)
+plt.show()
+top_ratings = netflix['rating'].value_counts().head(10)
+plt.figure(figsize=(10, 8))
+top_ratings.plot(kind="bar", color="skyblue")
+plt.title("Content Distribution by Rating")
+plt.xlabel("Rating")
+plt.ylabel("Number of Titles")
+plt.xticks(rotation=45)
+plt.tight_layout()
+plt.show()
+countries = ['India', 'Japan', 'United States', 'United Kingdom', 'Unknown']
+data = netflix[netflix['country'].isin(countries)]
+data.groupby(['country', 'type']).size().plot(
+    kind='bar',
+    figsize=(10, 6),
+    color=['skyblue', 'gold']
+)
+plt.title("Movies vs TV Shows by Country")
+plt.xlabel("Country")
+plt.ylabel("Count")
+plt.xticks(rotation=30)
+plt.tight_layout()
+plt.show()
+#find out what what the most popular movies and baby names for each given year
+#inport new data
+babynames = pd.read_csv('Desktop/babyNamesUSYOB-full.csv')
+babynames.head()
+print(babynames.columns)
+print(netflix.columns)
+babynames = babynames.rename(columns={'YearOfBirth': 'year'}) if 'YearOfBirth' in babynames.columns else babynames
+netflix = netflix.rename(columns={'release_year': 'year'}) if 'release_year' in netflix.columns else netflix
+print(babynames.columns)
+print(netflix.columns)
+print(babynames['year'].unique())
+print(netflix['year'].unique())
+babynames_years = set(babynames['year'].unique())
+netflix_years = set(netflix['year'].unique())
+overlap_years = sorted(babynames_years & netflix_years)
+print(overlap_years)
+#install sqlalchemy
+%pip install sqlalchemy --quiet
+from sqlalchemy import create_engine
+engine = create_engine('sqlite://', echo=False)
+babynames.to_sql('babies', con=engine, index=False, if_exists='replace')
+netflix.to_sql('netflix', con=engine, index=False, if_exists='replace')
+query = """
+SELECT *
+FROM babies b
+INNER JOIN netflix n ON b.year = n.year
+WHERE b.year BETWEEN 2000 AND 2024
+LIMIT 10000;
+"""
+#Combines rows only where there's a match in both tables
+result = pd.read_sql(query, con=engine)
+result.head()
+result = result.loc[:, ~result.columns.duplicated()]
+print(result.columns)
+print(result['year'].unique())
