@@ -1,53 +1,89 @@
+# Install required libraries
 %pip install pandas numpy matplotlib
+
+# Import necessary packages
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+
+# Load Netflix data from a CSV file
 netflix = pd.read_csv('Downloads/netflix_titles.csv')
+
+# Preview the data
 netflix.head()
-netflix.info()
-netflix.describe()
-netflix.isnull().sum()
+netflix.info()       # Check column data types and non-null counts
+netflix.describe()   # Basic statistics for numerical columns
+netflix.isnull().sum()  # Count missing values in each column
+
+# Count exact duplicate rows
 exact_duplicates = netflix.duplicated().sum()
 exact_duplicates
-netflix=netflix.dropna(subset=['duration','rating'])
-#clean up null values
+
+# Drop rows where 'duration' or 'rating' are missing
+netflix = netflix.dropna(subset=['duration', 'rating'])
+
+# Keep only Movies and TV Shows
 netflix = netflix[netflix['type'].isin(['Movie', 'TV Show'])].copy()
+
+# Fill in missing values with placeholders
 netflix['country'] = netflix['country'].fillna('Unknown')
 netflix['director'] = netflix['director'].fillna('Not Available')
 netflix['cast'] = netflix['cast'].fillna('Not Listed')
 netflix['date_added'] = netflix['date_added'].fillna('Date Not Available')
+
+# Preview the cleaned data
 netflix.head(10)
+
+# Count the number of each type (Movie vs TV Show)
 netflix['type'].value_counts()
-top_directors=netflix['director'].value_counts().head(8)
+
+# Get top 8 most frequent directors
+top_directors = netflix['director'].value_counts().head(8)
 top_directors
-top_country=netflix['country'].value_counts().head(15)
+
+# Get top 15 countries represented in the data
+top_country = netflix['country'].value_counts().head(15)
 top_country
-top_release_year=netflix['release_year'].value_counts().head(30)
+
+# Get top 30 most frequent release years
+top_release_year = netflix['release_year'].value_counts().head(30)
 top_release_year
-Top_types_by_country=netflix.groupby(['country','type']).size().reset_index(name='count')
+
+# Count how many of each type exist per country and show top 20
+Top_types_by_country = netflix.groupby(['country', 'type']).size().reset_index(name='count')
 Top_types_by_country = Top_types_by_country.sort_values(by='count', ascending=False).head(20)
 Top_types_by_country
-#converting the durating to a usable number
+
+# Extract duration number (in minutes) from string like "90 min"
 netflix['duration_min'] = netflix['duration'].str.extract(r'(\d+)').astype(float)
 netflix
-documentaries=netflix[netflix['listed_in'].str.contains('Documentaries')]
+
+# Filter for documentary content
+documentaries = netflix[netflix['listed_in'].str.contains('Documentaries')]
 documentaries
-netflix[netflix['country'].isin(['France', 'Turkey'])][['country','type', 'date_added']].head(20)
+
+# Show example content from France or Turkey
+netflix[netflix['country'].isin(['France', 'Turkey'])][['country', 'type', 'date_added']].head(20)
+
+# Plot type distribution (Movies vs TV Shows)
 type_counts = netflix['type'].value_counts()
-#counting types within netflix
 type_counts.plot(kind='bar', color=['skyblue', 'blue'])
 plt.xlabel('Type')
 plt.ylabel('Count')
 plt.title('Movies vs TV Shows on Netflix')
 plt.tight_layout()
 plt.show()
-plt.figure(figsize=(10,4))
-netflix['release_year'].value_counts().sort_index().plot(kind='line',color='blue')
+
+# Plot number of releases by year
+plt.figure(figsize=(10, 4))
+netflix['release_year'].value_counts().sort_index().plot(kind='line', color='blue')
 plt.title("Titles Released Over Year")
-plt.xlabel("Year or Release")
-plt.ylabel("Number of titles")
+plt.xlabel("Year of Release")
+plt.ylabel("Number of Titles")
 plt.grid(True)
 plt.show()
+
+# Plot top 10 content ratings
 top_ratings = netflix['rating'].value_counts().head(10)
 plt.figure(figsize=(10, 8))
 top_ratings.plot(kind="bar", color="skyblue")
@@ -57,6 +93,8 @@ plt.ylabel("Number of Titles")
 plt.xticks(rotation=45)
 plt.tight_layout()
 plt.show()
+
+# Compare content types across selected countries
 countries = ['India', 'Japan', 'United States', 'United Kingdom', 'Unknown']
 data = netflix[netflix['country'].isin(countries)]
 data.groupby(['country', 'type']).size().plot(
@@ -70,28 +108,53 @@ plt.ylabel("Count")
 plt.xticks(rotation=30)
 plt.tight_layout()
 plt.show()
-#find out what what the most popular movies and baby names for each given year
-#inport new data
+
+# ---------------------------- #
+# JOINING WITH BABY NAMES DATA
+# ---------------------------- #
+
+# Load baby names dataset
 babynames = pd.read_csv('Desktop/babyNamesUSYOB-full.csv')
 babynames.head()
+
+# Print column names for reference
 print(babynames.columns)
 print(netflix.columns)
+
+# Rename columns so both datasets share the same year column name
 babynames = babynames.rename(columns={'YearOfBirth': 'year'}) if 'YearOfBirth' in babynames.columns else babynames
 netflix = netflix.rename(columns={'release_year': 'year'}) if 'release_year' in netflix.columns else netflix
+
+# Confirm column names again
 print(babynames.columns)
 print(netflix.columns)
+
+# Check unique years in both datasets
 print(babynames['year'].unique())
 print(netflix['year'].unique())
+
+# Identify years both datasets have in common
 babynames_years = set(babynames['year'].unique())
 netflix_years = set(netflix['year'].unique())
 overlap_years = sorted(babynames_years & netflix_years)
 print(overlap_years)
-#install sqlalchemy
+
+# ---------------------------- #
+# SQL JOIN WITH SQLALCHEMY
+# ---------------------------- #
+
+# Install SQLAlchemy if not already installed
 %pip install sqlalchemy --quiet
+
+# Create an in-memory SQLite database
 from sqlalchemy import create_engine
 engine = create_engine('sqlite://', echo=False)
+
+# Save both dataframes to the SQLite database
 babynames.to_sql('babies', con=engine, index=False, if_exists='replace')
 netflix.to_sql('netflix', con=engine, index=False, if_exists='replace')
+
+# SQL query to join both datasets by year from 2000 to 2024
 query = """
 SELECT *
 FROM babies b
@@ -99,9 +162,13 @@ INNER JOIN netflix n ON b.year = n.year
 WHERE b.year BETWEEN 2000 AND 2024
 LIMIT 10000;
 """
-#Combines rows only where there's a match in both tables
+
+# Execute the query and load results into a DataFrame
 result = pd.read_sql(query, con=engine)
-result.head()
+
+# Remove duplicate columns that may result from the join
 result = result.loc[:, ~result.columns.duplicated()]
+
+# Show final columns and years in the joined data
 print(result.columns)
 print(result['year'].unique())
